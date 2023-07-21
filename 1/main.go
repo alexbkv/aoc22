@@ -9,5 +9,6 @@ func main() {
 	panicOnErr(err)
 
 	_, maxCalories := findMaxCalories(elfData)
-	log.Println(maxCalories)
+	maxIdx, max := findNMax(elfData, 3)
+	log.Println(maxCalories, maxIdx, max)
 }

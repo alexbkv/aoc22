@@ -14,6 +14,14 @@ func panicOnErr(err error) {
 	}
 }
 
+func sumCalories(elf []int) int {
+	sum := 0
+	for _, cal := range elf {
+		sum += cal
+	}
+	return sum
+}
+
 func readFile(name string) ([][]int, error) {
 
 	file, err := os.Open(name)
