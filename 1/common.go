@@ -28,6 +28,7 @@ func readFile(name string) ([][]int, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer file.Close()
 
 	scanner := bufio.NewScanner(file)
 
