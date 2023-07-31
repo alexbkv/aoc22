@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"errors"
+	"io"
 	"log"
 	"os"
 	"strings"
@@ -11,7 +12,7 @@ import (
 
 type Result struct {
 	Words []string
-	Err error
+	Err   error
 }
 
 func timeFunc(start time.Time, name string) {
@@ -19,10 +20,9 @@ func timeFunc(start time.Time, name string) {
 	log.Printf("%s took %s", name, elapsed)
 }
 
-type CalculatorFunc func ([]string) (int, error)
+type CalculatorFunc func([]string) (int, error)
 
 func calculateStrategy(words []string) (int, error) {
-
 	opponent, ok := aliases[words[0]]
 
 	if !ok {
@@ -42,12 +42,12 @@ func calculateStrategy(words []string) (int, error) {
 		points += opponent.Points
 	case lossPoints:
 		losingGesture, ok := aliases[opponent.Beats[1]]
-		if ! ok {
+		if !ok {
 			return 0, errors.New("invalid gesture")
 		}
 		points += losingGesture.Points
 	case winPoints:
-		for _, g := range gestures{
+		for _, g := range gestures {
 			if g.Beats[0] == opponent.Name {
 				points += g.Points
 			}
@@ -60,12 +60,9 @@ func calculateStrategy(words []string) (int, error) {
 	}
 
 	return points, nil
-
-
 }
 
 func calculateRound(words []string) (int, error) {
-
 	opponent, ok := aliases[words[0]]
 
 	if !ok {
@@ -88,14 +85,12 @@ func calculateRound(words []string) (int, error) {
 		return points + lossPoints, nil
 	}
 
-
 	return points + drawPoints, nil
-
 }
 
 func calculateSum(filename string, calculator CalculatorFunc) (int, error) {
-
 	defer timeFunc(time.Now(), "Calculator")
+
 	sum := 0
 	file, err := os.Open(filename)
 	if err != nil {
@@ -123,19 +118,80 @@ func calculateSum(filename string, calculator CalculatorFunc) (int, error) {
 	return sum, nil
 }
 
+func getLine(r io.Reader) chan Result {
+	scanner := bufio.NewScanner(r)
+	out := make(chan Result)
+
+	go func() {
+		defer close(out)
+		for scanner.Scan() {
+			line := scanner.Text()
+			words := strings.Split(line, " ")
+			out <- Result{words, nil}
+		}
+
+		if err := scanner.Err(); err != nil {
+			out <- Result{nil, err}
+			return
+		}
+	}()
+
+	return out
+}
+
+func withChan(filename string) ([]int, error) {
+	defer timeFunc(time.Now(), "W")
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	funcs := []CalculatorFunc{calculateRound, calculateStrategy}
+
+	sums := make([]int, len(funcs))
+	for res := range getLine(file) {
+
+		if res.Err != nil {
+			return nil, res.Err
+		}
+
+		for i, f := range funcs {
+			pts, err := f(res.Words)
+			if err != nil {
+				return nil, err
+			}
+			sums[i] += pts
+		}
+	}
+	return sums, nil
+
+}
+
+func withoutChan(filename string) ([]int, error){
+	defer timeFunc(time.Now(), "W/o")
+	first, err := calculateSum(filename, calculateRound)
+	if err != nil {
+		return nil, err
+	}
+
+	second, err := calculateSum(filename, calculateStrategy)
+	if err != nil {
+		return nil, err
+	}
+
+	return []int{first, second}, nil
+}
 
 func main() {
-
-	sum, err := calculateSum(`input.txt`, calculateRound)
+	filename := "input.txt"
+	first, err := withChan(filename)
 	if err != nil {
 		log.Panic(err)
 	}
-	log.Println(sum)
 
-	sum, err = calculateSum(`input.txt`, calculateStrategy)
+	second, err := withoutChan(filename)
 	if err != nil {
 		log.Panic(err)
 	}
-	log.Println(sum)
-
+	log.Println(first, second)
 }
