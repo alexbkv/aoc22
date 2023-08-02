@@ -9,7 +9,15 @@ import (
 
 type Result struct {
 	Line string
-	Err error
+	Err  error
+}
+
+type Set map[int]bool
+
+func (s Set) append(num int) {
+	if _, ok := s[num]; !ok {
+		s[num] = true
+	}
 }
 
 func panicOnErr(err error) {
@@ -17,7 +25,6 @@ func panicOnErr(err error) {
 		log.Panic(err)
 	}
 }
-
 
 func byteToPriority(b byte) (int, error) {
 	if b >= 97 && b <= 122 {
@@ -31,24 +38,43 @@ func byteToPriority(b byte) (int, error) {
 	return 0, errors.New("incorrect item")
 }
 
-func selectCommon(line string) (byte, error) {
-	byteArray := []byte(line)
+func processLine(symset map[byte]Set, line string, lineNum int) {
 
-	firstHalf := byteArray[:len(byteArray) / 2]
-	secondHalf := byteArray[len(byteArray) / 2:]
+	lineBytes := []byte(line)
+	for _, b := range lineBytes {
+		if _, ok := symset[b]; ok {
+			symset[b].append(lineNum)
+		}
+	}
+}
 
-	symset := make(map[byte]bool)
-	for _, b := range firstHalf {
-		if !symset[b] {
-			symset[b] = true
+func selectCommon(lines ...string) (byte, error) {
+
+	if len(lines) < 2 {
+		return 0, errors.New("provide at least 2 lines two find common symbol")
+	}
+
+	symset := make(map[byte]Set)
+
+	for _, b := range []byte(lines[0]) {
+		_, ok := symset[b]
+		if !ok {
+			set := make(Set)
+			set.append(1)
+			symset[b] = set
 		}
 	}
 
-	for _, b := range secondHalf {
-		if symset[b] {
-			return b, nil
+	for i, line := range lines[1:] {
+		processLine(symset, line, i+2)
+	}
+
+	for k := range symset {
+		if len(symset[k]) == len(lines) {
+			return k, nil
 		}
 	}
+
 	return 0, errors.New("no common items.")
 }
 
@@ -90,13 +116,8 @@ func one(filename string) (int, error) {
 			return 0, err
 		}
 
-		item, err := selectCommon(l.Line)
-		if err != nil {
-			return 0, err
-		}
-
-		p, err := byteToPriority(item)
-
+		size := len(l.Line)
+		p, err := linesPriority(l.Line[:size/2], l.Line[size/2:])
 		if err != nil {
 			return 0, err
 		}
@@ -106,11 +127,64 @@ func one(filename string) (int, error) {
 	return sum, nil
 
 }
-	
+
+func two(filename string) (int, error) {
+	out, err := getLine(`input.txt`)
+	if err != nil {
+		return 0, err
+	}
+
+	sum := 0
+
+	groupSize := 3
+	var group []string
+
+	for l := range out {
+		if err := l.Err; err != nil {
+			return 0, err
+		}
+		if len(group) == groupSize {
+			p, err := linesPriority(group...)
+			if err != nil {
+				return 0, err
+			}
+			sum += p
+			group = nil
+		}
+		group = append(group, l.Line)
+	}
+
+	p, err := linesPriority(group...)
+	if err != nil {
+		return 0, err
+	}
+	sum += p
+	group = nil
+
+	return sum, nil
+}
+
+func linesPriority(lines ...string) (int, error) {
+	item, err := selectCommon(lines...)
+	if err != nil {
+		return 0, err
+	}
+
+	p, err := byteToPriority(item)
+
+	if err != nil {
+		return 0, err
+	}
+	return p, nil
+}
 
 func main() {
 	filename := "input.txt"
 	res, err := one(filename)
+	panicOnErr(err)
+	log.Println(res)
+
+	res, err = two(filename)
 	panicOnErr(err)
 	log.Println(res)
 
